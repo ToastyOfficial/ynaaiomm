@@ -81,20 +81,6 @@ Here is a comprehensive breakdown of the features currently available in the mod
 
 ---
 
-## 🛡️ Protections
-*Defend against other modders*
-- **Block Malicious Script Events**: Intercepts bad TSEs
-- **Explosion & Fire Immunity**: Immune to fire/explosions
-- **Attachment Protection**: Detaches ANY objects stuck to you
-- **Block Invalid Sync Nodes**: Hook network stream to drop bad syncs
-
-### 🚧 Crazy Defenses
-- **Projectile Shield**: Deletes incoming rockets and grenades
-- **Auto-Delete Cages**: Instantly destroys objects spawned on you
-- **Break Free**: Instantly escape frozen states and clear area
-
----
-
 ## 👥 Online Players
 *Interact with players in the lobby*
 - **Player Count**: Displays the total number of players in the session
@@ -108,15 +94,17 @@ Here is a comprehensive breakdown of the features currently available in the mod
 
 ---
 
-## ⚙️ Settings
-*Menu configuration and credits*
-- **Script Data**:
-  - **Save Config**: Saves all current toggle states to disk
-  - **Reload Config**: Reloads toggles from disk
-- **Preferences**:
-  - **Auto-Save Config**: Automatically save on exit
-  - **Verbose Logging**: Print debug info to console
-- **Credits**: Recognitions for Developer and Helpers
+## 🛡️ Protections
+*Defend against other modders*
+- **Block Malicious Script Events**: Intercepts bad TSEs
+- **Explosion & Fire Immunity**: Immune to fire/explosions
+- **Attachment Protection**: Detaches ANY objects stuck to you
+- **Block Invalid Sync Nodes**: Hook network stream to drop bad syncs
+
+### 🚧 Crazy Defenses
+- **Projectile Shield**: Deletes incoming rockets and grenades
+- **Auto-Delete Cages**: Instantly destroys objects spawned on you
+- **Break Free**: Instantly escape frozen states and clear area
 
 ---
 
@@ -133,5 +121,17 @@ Here is a comprehensive breakdown of the features currently available in the mod
 - **Change Weather**: Force local weather to Extra Sunny, Rain, Thunder, or Snow
 - **Clear Area**: Delete all nearby peds, vehicles, and objects
 - **World Actions**:
+
+---
+
+## ⚙️ Settings
+*Menu configuration and credits*
+- **Script Data**:
+  - **Save Config**: Saves all current toggle states to disk
+  - **Reload Config**: Reloads toggles from disk
+- **Preferences**:
+  - **Auto-Save Config**: Automatically save on exit
+  - **Verbose Logging**: Print debug info to console
+- **Credits**: Recognitions for Developer and Helpers
   - **Delete Nearby Vehicles**: Wipes all empty vehicles from the area
   - **Fetch Random Joke**: Tests the HTTP module by grabbing a joke from an API
