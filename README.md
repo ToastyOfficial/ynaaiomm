@@ -1,6 +1,6 @@
 # 🌌 YNAAIOMM (Yet Not Another All-In-One Mod Menu) Feature List
 
-Here is a comprehensive breakdown of the features currently available in the mod menu:
+Made for Ethereal Lua Engine, below are features currently available in the mod menu:
 
 ## 👤 Self Options
 *Modifications for your local player*
