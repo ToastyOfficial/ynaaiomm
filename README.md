@@ -55,6 +55,7 @@ Here is a comprehensive breakdown of the features currently available in the mod
 - **Max Upgrades**: Apply full upgrades instantly
 - **Custom License Plate**: Set plate text to `ETHEREAL`
 - **Flip Vehicle**: Unflip your vehicle
+- **LSC**: Los Santos Customs On-The-Go
 
 ### 🏎️ Vehicle Spawner
 *Spawn vehicles with 3D previews*
