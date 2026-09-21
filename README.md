@@ -100,8 +100,6 @@ Here is a comprehensive breakdown of the features currently available in the mod
 - **Explosion & Fire Immunity**: Immune to fire/explosions
 - **Attachment Protection**: Detaches ANY objects stuck to you
 - **Block Invalid Sync Nodes**: Hook network stream to drop bad syncs
-
-### 🚧 Crazy Defenses
 - **Projectile Shield**: Deletes incoming rockets and grenades
 - **Auto-Delete Cages**: Instantly destroys objects spawned on you
 - **Break Free**: Instantly escape frozen states and clear area
