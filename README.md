@@ -1,6 +1,6 @@
 # 🌌 YNAAIOMM (Yet Not Another All-In-One Mod Menu) Feature List
 
-Made for Ethereal Lua Engine, below are features currently available in the mod menu:
+Here is a comprehensive breakdown of the features currently available in the mod menu:
 
 ## 👤 Self Options
 *Modifications for your local player*
@@ -81,28 +81,16 @@ Made for Ethereal Lua Engine, below are features currently available in the mod 
 
 ---
 
-## 👥 Online Players
-*Interact with players in the lobby*
-- **Player Count**: Displays the total number of players in the session
-- **Individual Player Submenus**:
-  - **General Options**:
-    - **Teleport to Player**: Move to their exact coordinates
-    - **Send Friendly SMS**: Send an in-game text
-  - **Malicious Options**:
-    - **Smart Kick**: Removes player from session
-    - **Network Timeout**: Blocks their data synchronization
-
----
-
-## 🛡️ Protections
-*Defend against other modders*
-- **Block Malicious Script Events**: Intercepts bad TSEs
-- **Explosion & Fire Immunity**: Immune to fire/explosions
-- **Attachment Protection**: Detaches ANY objects stuck to you
-- **Block Invalid Sync Nodes**: Hook network stream to drop bad syncs
-- **Projectile Shield**: Deletes incoming rockets and grenades
-- **Auto-Delete Cages**: Instantly destroys objects spawned on you
-- **Break Free**: Instantly escape frozen states and clear area
+## 🗺️ Teleport Options
+*Teleport around the map*
+- **🔄 Smooth Transitions**: Use story mode character switch transition for all teleports
+- **🚩 Teleport to Waypoint**: Teleport instantly to your placed waypoint on the map
+- **🌆 Los Santos**: LS Customs, Ammu-Nation, Maze Bank Tower, Vinewood Sign, Del Perro Pier, Beach, LSIA
+- **🎵 Nightclubs & Bars**: Tequi-La-La, Bahama Mamas, The Music Locker, Vanilla Unicorn (Inside & Out)
+- **🎰 Casino**: Diamond Casino Entrance & Roof
+- **🏜️ Blaine County**: Sandy Shores, Paleto Bay, Fort Zancudo
+- **⛰️ Mountains**: Mount Chiliad Peak
+- **🌊 Deep Water Locations**: Deep Ocean Trench, Sunken Shipwreck, North Coast
 
 ---
 
@@ -119,6 +107,33 @@ Made for Ethereal Lua Engine, below are features currently available in the mod 
 - **Change Weather**: Force local weather to Extra Sunny, Rain, Thunder, or Snow
 - **Clear Area**: Delete all nearby peds, vehicles, and objects
 - **World Actions**:
+  - **Delete Nearby Vehicles**: Wipes all empty vehicles from the area
+  - **Fetch Random Joke**: Tests the HTTP module by grabbing a joke from an API
+
+---
+
+## 🛡️ Protections
+*Defend against other modders*
+- **Block Malicious Script Events**: Intercepts bad TSEs
+- **Explosion & Fire Immunity**: Immune to fire/explosions
+- **Attachment Protection**: Detaches ANY objects stuck to you
+- **Block Invalid Sync Nodes**: Hook network stream to drop bad syncs
+- **Projectile Shield**: Deletes incoming rockets and grenades
+- **Auto-Delete Cages**: Instantly destroys objects spawned on you
+- **Break Free**: Instantly escape frozen states and clear area
+
+---
+
+## 👥 Online Players
+*Interact with players in the lobby*
+- **Player Count**: Displays the total number of players in the session
+- **Individual Player Submenus**:
+  - **General Options**:
+    - **Teleport to Player**: Move to their exact coordinates
+    - **Send Friendly SMS**: Send an in-game text
+  - **Malicious Options**:
+    - **Smart Kick**: Removes player from session
+    - **Network Timeout**: Blocks their data synchronization
 
 ---
 
@@ -131,5 +146,3 @@ Made for Ethereal Lua Engine, below are features currently available in the mod 
   - **Auto-Save Config**: Automatically save on exit
   - **Verbose Logging**: Print debug info to console
 - **Credits**: Recognitions for Developer and Helpers
-  - **Delete Nearby Vehicles**: Wipes all empty vehicles from the area
-  - **Fetch Random Joke**: Tests the HTTP module by grabbing a joke from an API
