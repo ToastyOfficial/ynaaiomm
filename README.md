@@ -1,2 +1,137 @@
-# ynaaiomm
-Yet Not Another All-in-One Mod Menu
+# 🌌 YNAAIOMM (Yet Not Another All-In-One Mod Menu) Feature List
+
+Here is a comprehensive breakdown of the features currently available in the mod menu:
+
+## 👤 Self Options
+*Modifications for your local player*
+- **Godmode**: Prevents all damage
+- **Invisibility**: Make your player model invisible
+- **Never Wanted**: Automatically clears police wanted level
+- **Super Jump**: Jump incredibly high
+
+### 🏃 Movement & Physics
+- **Fast Run/Sprint**: Run extremely fast
+- **Fast Swim**: Swim extremely fast
+- **No Ragdoll**: Cannot be knocked over
+- **Seatbelt**: Cannot be launched from vehicles
+- **Ignored by NPCs**: Cops and peds ignore you
+- **Clone Ped**: Spawn a clone of yourself
+
+### ✨ Crazy Powers
+- **Jedi Forcefield**: Repels all nearby peds and vehicles
+- **Fire Breath**: Attack while unarmed to breathe fire
+- **Walk on Water**: Spawn an invisible platform on water
+
+### 🎭 Appearance & Models
+- **Freemode Models**: Standard online models (Male/Female)
+- **Animals**: Play as a Chimp, Chop (Dog), Cat, Cow, or Coyote
+- **Story Characters**: Play as Michael, Franklin, or Trevor
+- **Roleplay / Misc**: Cop, SWAT, Alien, Space Monkey
+
+### 👕 Outfit Changer
+- **Presets**: Randomize Outfit, Invisible Body, Naked / Base
+- **Custom Components (0-600)**: Customize Face/Head, Masks, Hair, Torso/Arms, Legs, Bags/Parachutes, Shoes, Accessories, Undershirts, Body Armor, Decals, and Tops.
+
+### ⚡ Quick Actions
+- **Heal & Max Armor**: Restores health and gives maximum armor
+- **Suicide**: Take the easy way out
+
+### 🎬 Animations & Scenarios
+- **Animations**: Walkable Animations toggle, Pole Dance, Push Ups, Drink Beer, Cheering, Cowering
+- **Scenarios**: Drink Coffee, Muscle Flex, Paparazzi, Guard Stand, Jogging, Fishing, Binoculars
+
+---
+
+## 🚗 Vehicle Options
+*Modifications for vehicles*
+- **Vehicle Godmode**: Invincible car
+- **Horn Boost**: Hold horn to boost forward
+- **Invisible Vehicle**: Invisible car
+- **Engine Always On**: Keep engine running when exiting
+
+### 🔧 Vehicle Mods & Actions
+- **Repair & Clean**: Fixes current vehicle completely
+- **Spawn T20**: Quick spawn a Progen T20 directly into your control
+- **Max Upgrades**: Apply full upgrades instantly
+- **Custom License Plate**: Set plate text to `ETHEREAL`
+- **Flip Vehicle**: Unflip your vehicle
+
+### 🏎️ Vehicle Spawner
+*Spawn vehicles with 3D previews*
+- **Categories**: Super, Service, Utility, Emergency, Military, Muscle, Commercial, Industrial
+
+---
+
+## 🔫 Weapon Options
+*Modify guns and ammo*
+- **Infinite Ammo**: Never reload again
+- **Explosive Ammo**: All bullets detonate on impact
+- **Flaming Ammo**: Ignite targets
+- **Explosive Melee**: Explosive punches
+- **One-Hit Kill**: Kill with any weapon instantly
+- **Give All Weapons**: Grant standard weapon loadout
+
+### 🛠️ Ammunation (Mobile Workshop)
+- **Magazines & Ammo**: Default Clip, Extended Clip, Drum/Box Magazine
+  - **Special Ammo (Mk II)**: Tracer Rounds, Incendiary Rounds, Hollow Point Rounds, Armor Piercing Rounds, Explosive Rounds
+- **Attachments**: Suppressors (Pistols, Rifles, Snipers), Flashlights, Grip
+- **Sights & Scopes**: Macro, Small, Medium, Large, Max, Night Vision, Thermal Scopes
+- **Barrels & Muzzles**: Muzzle Brakes (1-4), Heavy Barrel (Mk II)
+- **Tints & Finishes**: Standard Weapon Tints (0-7), Luxe Finish (Mk II)
+
+---
+
+## 🛡️ Protections
+*Defend against other modders*
+- **Block Malicious Script Events**: Intercepts bad TSEs
+- **Explosion & Fire Immunity**: Immune to fire/explosions
+- **Attachment Protection**: Detaches ANY objects stuck to you
+- **Block Invalid Sync Nodes**: Hook network stream to drop bad syncs
+
+### 🚧 Crazy Defenses
+- **Projectile Shield**: Deletes incoming rockets and grenades
+- **Auto-Delete Cages**: Instantly destroys objects spawned on you
+- **Break Free**: Instantly escape frozen states and clear area
+
+---
+
+## 👥 Online Players
+*Interact with players in the lobby*
+- **Player Count**: Displays the total number of players in the session
+- **Individual Player Submenus**:
+  - **General Options**:
+    - **Teleport to Player**: Move to their exact coordinates
+    - **Send Friendly SMS**: Send an in-game text
+  - **Malicious Options**:
+    - **Smart Kick**: Removes player from session
+    - **Network Timeout**: Blocks their data synchronization
+
+---
+
+## ⚙️ Settings
+*Menu configuration and credits*
+- **Script Data**:
+  - **Save Config**: Saves all current toggle states to disk
+  - **Reload Config**: Reloads toggles from disk
+- **Preferences**:
+  - **Auto-Save Config**: Automatically save on exit
+  - **Verbose Logging**: Print debug info to console
+- **Credits**: Recognitions for Developer and Helpers
+
+---
+
+## 🌍 World & Network
+*Modify game environment and session*
+- **Visuals & ESP**:
+  - **On-Screen HUD**: Draws health and coordinates
+  - **Player ESP Text**: Draws distances to other players
+- **Environment**:
+  - **Time Control**: Override session time
+  - **Time Hour**: Set the hour (0-23)
+  - **Blackout / EMP**: Turn off all lights in the city
+  - **Low Gravity**: Floaty physics
+- **Change Weather**: Force local weather to Extra Sunny, Rain, Thunder, or Snow
+- **Clear Area**: Delete all nearby peds, vehicles, and objects
+- **World Actions**:
+  - **Delete Nearby Vehicles**: Wipes all empty vehicles from the area
+  - **Fetch Random Joke**: Tests the HTTP module by grabbing a joke from an API
