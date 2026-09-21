@@ -1,4 +1,4 @@
-# 🌌 YNAAIOMM (Yet Not Another All-In-One Mod Menu) Feature List
+# 🌌 YNAAIOMM v1.1 (Yet Not Another All-In-One Mod Menu) Feature List
 
 Here is a comprehensive breakdown of the features currently available in the mod menu:
 
@@ -81,7 +81,7 @@ Here is a comprehensive breakdown of the features currently available in the mod
 
 ---
 
-## 🗺️ Teleport Options
+## 🗺️ Teleport Options (NEW)
 *Teleport around the map*
 - **🔄 Smooth Transitions**: Use story mode character switch transition for all teleports
 - **🚩 Teleport to Waypoint**: Teleport instantly to your placed waypoint on the map
