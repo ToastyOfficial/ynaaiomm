@@ -25,6 +25,9 @@ local state = {
     -- World & Visuals
     player_esp = { value = false },
     info_hud = { value = true },
+    -- Paparazzi & Particle FX
+    active_paparazzi = {},
+    particle_loop_state = { enabled = {value = false}, effect = "", dict = "", target_pid = -1 },
 
     -- Vehicle Spawner State
     spawner = {
@@ -32,6 +35,8 @@ local state = {
         preview_hash = 0,
         selected_name = ""
     }
+
+-- OUTFIT PERSISTENCE STATE
 }
 
 local function save_config()
@@ -81,8 +86,62 @@ end)
 -- ========================================
 function tick()
     local ped = self.get_ped()
+    if outfit_lock.enabled then
+        local ped = self.get_ped()
+        if ped and ped ~= 0 then
+            for slot, data in pairs(outfit_lock.components) do
+                PED.SET_PED_COMPONENT_VARIATION(ped, slot, data.drawable, data.texture, 0)
+            end
+            for slot, data in pairs(outfit_lock.props) do
+                PED.SET_PED_PROP_INDEX(ped, slot, data.drawable, data.texture, true)
+            end
+        end
+    end
     local veh = self.get_veh()
     local pid = PLAYER.PLAYER_ID()
+
+    -- Particle Loop
+    if state.particle_loop_state.enabled.value and state.particle_loop_state.target_pid ~= -1 then
+        local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(state.particle_loop_state.target_pid)
+        if t_ped and t_ped ~= 0 and ENTITY.DOES_ENTITY_EXIST(t_ped) then
+            if request_particle_dict(state.particle_loop_state.dict) then
+                GRAPHICS.USE_PARTICLE_FX_ASSET(state.particle_loop_state.dict)
+                GRAPHICS.START_PARTICLE_FX_NON_LOOPED_ON_ENTITY(state.particle_loop_state.effect, t_ped, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, false, false, false)
+            end
+        else
+            state.particle_loop_state.enabled.value = false
+        end
+    end
+
+    -- Paparazzi Logic
+    for id, p_data in pairs(state.active_paparazzi) do
+        if ENTITY.DOES_ENTITY_EXIST(p_data.ped) then
+            local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p_data.target_pid)
+            if t_ped and t_ped ~= 0 then
+                local p_pos = ENTITY.GET_ENTITY_COORDS(p_data.ped, true)
+                local t_pos = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                local dist = SYSTEM.VDIST(p_pos.x, p_pos.y, p_pos.z, t_pos.x, t_pos.y, t_pos.z)
+                
+                if dist < 10.0 and not p_data.taking_pics then
+                    if PED.IS_PED_IN_ANY_VEHICLE(p_data.ped, false) then
+                        TASK.TASK_LEAVE_ANY_VEHICLE(p_data.ped, 0, 0)
+                    else
+                        TASK.TASK_TURN_PED_TO_FACE_ENTITY(p_data.ped, t_ped, 0)
+                        p_data.taking_pics = true
+                    end
+                elseif dist > 15.0 and p_data.taking_pics then
+                    if ENTITY.DOES_ENTITY_EXIST(p_data.bike) then
+                        TASK.TASK_ENTER_VEHICLE(p_data.ped, p_data.bike, 10000, -1, 2.0, 1, 0)
+                        TASK.TASK_VEHICLE_CHASE(p_data.ped, t_ped)
+                    end
+                    p_data.taking_pics = false
+                end
+            end
+        else
+            state.active_paparazzi[id] = nil
+        end
+    end
+
 
     -- 1. Self Modifiers
     if ped ~= 0 then
@@ -252,6 +311,79 @@ end
 -- LOGIC & FUNCTIONS
 -- ========================================
 
+
+-- OUTFIT HELPERS
+
+-- OUTFIT RANDOM / RESET
+
+local function request_model(hash)
+    if STREAMING.IS_MODEL_VALID(hash) then
+        STREAMING.REQUEST_MODEL(hash)
+        local timeout = 0
+        while not STREAMING.HAS_MODEL_LOADED(hash) and timeout < 100 do
+            script.yield(0)
+            timeout = timeout + 1
+        end
+        return STREAMING.HAS_MODEL_LOADED(hash)
+    end
+    return false
+end
+
+local function safe_spawn_ped(type, model, x, y, z)
+    if not request_model(model) then return 0 end
+    return PED.CREATE_PED(type, model, x, y, z, 0.0, true, false)
+end
+
+local function safe_spawn_object(model, x, y, z)
+    if not request_model(model) then return 0 end
+    return OBJECT.CREATE_OBJECT(model, x, y, z, true, true, false)
+end
+
+local function safe_spawn_vehicle(model, x, y, z, heading)
+    if not request_model(model) then return 0 end
+    return VEHICLE.CREATE_VEHICLE(model, x, y, z, heading, true, false)
+end
+
+local function request_particle_dict(dict)
+    STREAMING.REQUEST_NAMED_PTFX_ASSET(dict)
+    local timeout = 0
+    while not STREAMING.HAS_NAMED_PTFX_ASSET_LOADED(dict) and timeout < 100 do
+        script.yield(0)
+        timeout = timeout + 1
+    end
+    return STREAMING.HAS_NAMED_PTFX_ASSET_LOADED(dict)
+end
+
+local function play_particle_on_entity(dict, name, entity, scale)
+    if request_particle_dict(dict) then
+        GRAPHICS.USE_PARTICLE_FX_ASSET(dict)
+        GRAPHICS.START_PARTICLE_FX_NON_LOOPED_ON_ENTITY(name, entity, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, scale or 1.0, false, false, false)
+    end
+end
+
+local function copy_player_outfit(target_pid)
+    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(target_pid)
+    local l_ped = PLAYER.PLAYER_PED_ID()
+    if t_ped and t_ped ~= 0 and l_ped and l_ped ~= 0 then
+        for i = 0, 11 do
+            local drawable = PED.GET_PED_DRAWABLE_VARIATION(t_ped, i)
+            local texture = PED.GET_PED_TEXTURE_VARIATION(t_ped, i)
+            local palette = PED.GET_PED_PALETTE_VARIATION(t_ped, i)
+            PED.SET_PED_COMPONENT_VARIATION(l_ped, i, drawable, texture, palette)
+        end
+        for i = 0, 2 do
+            local drawable = PED.GET_PED_PROP_INDEX(t_ped, i)
+            local texture = PED.GET_PED_PROP_TEXTURE_INDEX(t_ped, i)
+            if drawable ~= -1 then
+                PED.SET_PED_PROP_INDEX(l_ped, i, drawable, texture, true)
+            else
+                PED.CLEAR_PED_PROP(l_ped, i)
+            end
+        end
+        notify.success("Copied outfit!")
+    end
+end
+
 local function clone_ped()
     local ped = self.get_ped()
     local pos = self.get_pos()
@@ -259,40 +391,6 @@ local function clone_ped()
     notify.success("Clone spawned.")
 end
 
-local function randomize_outfit()
-    local ped = self.get_ped()
-    for i = 0, 11 do
-        local max = PED.GET_NUMBER_OF_PED_DRAWABLE_VARIATIONS(ped, i) - 1
-        if max > 0 then
-            local r = math.random(0, max)
-            PED.SET_PED_COMPONENT_VARIATION(ped, i, r, 0, 0)
-            state.outfit["comp_" .. i].value = r
-            state.outfit["prev_comp_" .. i] = r
-        end
-    end
-    notify.success("Outfit randomized")
-end
-
-local function invisible_body()
-    local ped = self.get_ped()
-    PED.SET_PED_COMPONENT_VARIATION(ped, 3, 15, 0, 0)
-    PED.SET_PED_COMPONENT_VARIATION(ped, 8, 15, 0, 0)
-    PED.SET_PED_COMPONENT_VARIATION(ped, 11, 15, 0, 0)
-    state.outfit.comp_3.value = 15; state.outfit.prev_comp_3 = 15
-    state.outfit.comp_8.value = 15; state.outfit.prev_comp_8 = 15
-    state.outfit.comp_11.value = 15; state.outfit.prev_comp_11 = 15
-    notify.success("Applied Invisible Body")
-end
-
-local function naked_base()
-    local ped = self.get_ped()
-    for i = 0, 11 do
-        PED.SET_PED_COMPONENT_VARIATION(ped, i, 0, 0, 0)
-        state.outfit["comp_" .. i].value = 0
-        state.outfit["prev_comp_" .. i] = 0
-    end
-    notify.success("Applied Naked Outfit")
-end
 
 local function heal_max_armor()
     self.set_health(self.get_max_health())
@@ -792,28 +890,6 @@ gui.register_menu("YNAAIOMM", function()
     gui.add_option("✨ Space Monkey", "Go go space monkey", function() handle_model_spawn("u_m_y_rsranger_01") end)
     gui.set_submenu_context(self_menu)
 
-    local outfit_menu = gui.add_submenu("Outfit Changer", "Customize your clothing")
-    gui.set_submenu_context(outfit_menu)
-    local presets_menu = gui.add_submenu("Presets", "Quick outfits")
-    gui.set_submenu_context(presets_menu)
-    gui.add_option("✨ Randomize Outfit", "Mix all components", randomize_outfit)
-    gui.add_option("✨ Invisible Body", "Hides torso and arms", invisible_body)
-    gui.add_option("✨ Naked / Base", "Default underwear", naked_base)
-    gui.set_submenu_context(outfit_menu)
-
-    gui.add_break("=== COMPONENTS (0-600) ===")
-    gui.add_number_option("✨ Face / Head", "Head shape", state.outfit.comp_0, 0, 600, 1)
-    gui.add_number_option("✨ Masks", "Face covers", state.outfit.comp_1, 0, 600, 1)
-    gui.add_number_option("✨ Hair", "Hairstyle", state.outfit.comp_2, 0, 600, 1)
-    gui.add_number_option("✨ Torso / Arms", "Upper body base", state.outfit.comp_3, 0, 600, 1)
-    gui.add_number_option("✨ Legs / Pants", "Trousers", state.outfit.comp_4, 0, 600, 1)
-    gui.add_number_option("✨ Bags / Parachutes", "Backpacks", state.outfit.comp_5, 0, 600, 1)
-    gui.add_number_option("✨ Shoes", "Footwear", state.outfit.comp_6, 0, 600, 1)
-    gui.add_number_option("✨ Accessories / Neck", "Scarves and chains", state.outfit.comp_7, 0, 600, 1)
-    gui.add_number_option("✨ Undershirts", "Under jacket top", state.outfit.comp_8, 0, 600, 1)
-    gui.add_number_option("✨ Body Armor", "Kevlar vests", state.outfit.comp_9, 0, 600, 1)
-    gui.add_number_option("✨ Decals / Logos", "Shirt prints", state.outfit.comp_10, 0, 600, 1)
-    gui.add_number_option("✨ Tops / Jackets", "Outer torso", state.outfit.comp_11, 0, 600, 1)
     gui.set_submenu_context(self_menu)
     gui.add_break("=== QUICK ACTIONS ===")
     gui.add_option("✨ Heal & Max Armor", "Restores health and gives maximum armor", heal_max_armor)
@@ -847,11 +923,88 @@ gui.register_menu("YNAAIOMM", function()
 
     gui.reset_submenu_context()
 
+
+    -- OUTFIT MANAGER
+    local outfit_sub = gui.add_submenu("👔 Outfit Manager", "Customize your appearance")
+    gui.set_submenu_context(outfit_sub)
+    gui.add_break("=== 🔒 LOCK CONTROLS ===")
+    gui.add_option("🔒 Lock Current Outfit", "Lock ALL current clothes", enable_full_outfit_lock)
+    gui.add_option("🔓 Unlock Outfit", "Allow clothes to revert", disable_outfit_lock)
+    gui.add_option("🎲 Random Outfit (Auto-Lock)", "Generate random clothing", random_outfit)
+    gui.add_option("Reset Outfit", "Reset to default clothes", reset_outfit)
+    gui.add_break("=== CLOTHING ===")
+    gui.add_number_option("👕 Shirt", "0-40", component_shirt, 0, 40, 1)
+    gui.add_option("Apply Shirt", "", function() set_component(3, component_shirt.value, 0) end)
+    gui.add_number_option("👖 Pants", "0-25", component_pants, 0, 25, 1)
+    gui.add_option("Apply Pants", "", function() set_component(4, component_pants.value, 0) end)
+    gui.add_number_option("👞 Shoes", "0-25", component_shoes, 0, 25, 1)
+    gui.add_option("Apply Shoes", "", function() set_component(6, component_shoes.value, 0) end)
+    gui.add_number_option("💇 Hair", "0-30", component_hair, 0, 30, 1)
+    gui.add_option("Apply Hair", "", function() set_component(2, component_hair.value, 0) end)
+    gui.add_break("=== ACCESSORIES ===")
+    gui.add_number_option("🎩 Hat", "-1 to 40", component_hat, -1, 40, 1)
+    gui.add_option("Apply Hat", "", function()
+        if component_hat.value == -1 then set_prop(0, -1, 0) else set_prop(0, component_hat.value, 0) end
+    end)
+    gui.add_number_option("👓 Glasses", "-1 to 40", component_glasses, -1, 40, 1)
+    gui.add_option("Apply Glasses", "", function()
+        if component_glasses.value == -1 then set_prop(1, -1, 0) else set_prop(1, component_glasses.value, 0) end
+    end)
+    gui.add_break("=== PRESETS ===")
+    gui.add_option("👕 Casual Look", "Everyday outfit", function()
+        local ped = self.get_ped()
+        if ped and ped ~= 0 then
+            set_component(3, 1, 0)
+            set_component(4, 0, 0)
+            set_component(6, 0, 0)
+            notify.success("Casual look locked")
+        end
+    end)
+    gui.add_option("🤵 Formal Look", "Suit and tie", function()
+        local ped = self.get_ped()
+        if ped and ped ~= 0 then
+            set_component(3, 10, 0)
+            set_component(4, 5, 0)
+            set_component(6, 10, 0)
+            notify.success("Formal look locked")
+        end
+    end)
+    gui.reset_submenu_context()
+
     -- Submenu: Vehicle Options
     local veh_menu = gui.add_submenu("Vehicle Options", "Modifications for vehicles")
     gui.set_submenu_context(veh_menu)
     gui.add_bool_option("🛡️ Vehicle Godmode", "Prevents visual and mechanical damage", state.veh_godmode)
     gui.add_bool_option("✨ Horn Boost", "Apply forward thrust when honking", state.veh_horn_boost)
+
+    local acrobatics_menu = gui.add_submenu("Acrobatics", "Perform stunts")
+    gui.set_submenu_context(acrobatics_menu)
+    gui.add_option("⬆️ Jump", "Jump up", function()
+        local veh = PED.GET_VEHICLE_PED_IS_IN(self.get_ped(), false)
+        if veh and veh ~= 0 then
+            ENTITY.APPLY_FORCE_TO_ENTITY(veh, 1, 0.0, 0.0, 10.0, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
+        end
+    end)
+    gui.add_option("↩️ Left Kickflip", "Roll left", function()
+        local veh = PED.GET_VEHICLE_PED_IS_IN(self.get_ped(), false)
+        if veh and veh ~= 0 then
+            ENTITY.APPLY_FORCE_TO_ENTITY(veh, 1, 0.0, 0.0, 12.0, 2.0, 0.0, 0.0, 0, true, true, true, false, true)
+        end
+    end)
+    gui.add_option("↪️ Right Kickflip", "Roll right", function()
+        local veh = PED.GET_VEHICLE_PED_IS_IN(self.get_ped(), false)
+        if veh and veh ~= 0 then
+            ENTITY.APPLY_FORCE_TO_ENTITY(veh, 1, 0.0, 0.0, 12.0, -2.0, 0.0, 0.0, 0, true, true, true, false, true)
+        end
+    end)
+    gui.add_option("🔄 Backflip", "Flip backwards", function()
+        local veh = PED.GET_VEHICLE_PED_IS_IN(self.get_ped(), false)
+        if veh and veh ~= 0 then
+            ENTITY.APPLY_FORCE_TO_ENTITY(veh, 1, 0.0, 0.0, 15.0, 0.0, 3.0, 0.0, 0, true, true, true, false, true)
+        end
+    end)
+    gui.set_submenu_context(veh_menu)
+
 
     gui.add_break("=== QUICK ACTIONS ===")
     gui.add_option("✨ Repair & Clean", "Fixes current vehicle completely", repair_clean)
@@ -1884,6 +2037,292 @@ end
                 gui.add_break("=== GENERAL OPTIONS ===")
                 gui.add_option("🚀 Teleport to Player", "Move to their exact coordinates", teleport_to_player)
 
+                gui.add_option("👀 Spectate Player", "Watch their camera", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        NETWORK.NETWORK_SET_IN_SPECTATOR_MODE(true, t_ped)
+                    end
+                end)
+                gui.add_option("👀 Stop Spectating", "Return to your own ped", function()
+                    NETWORK.NETWORK_SET_IN_SPECTATOR_MODE(false, 0)
+                end)
+                gui.add_option("👕 Copy Outfit", "Steal their look", function()
+                    copy_player_outfit(p:get_id())
+                end)
+                gui.add_option("📍 GPS to Player", "Set waypoint to them", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local coords = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                        HUD.SET_NEW_WAYPOINT(coords.x, coords.y)
+                        notify.success("Waypoint set!")
+                    end
+                end)
+
+                local p_veh_sub = gui.add_submenu("🚗 Vehicle Options", "Remote vehicle actions")
+                gui.set_submenu_context(p_veh_sub)
+                gui.add_option("🔧 Fix/Wash Vehicle", "Repair their ride", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    local veh = PED.GET_VEHICLE_PED_IS_IN(t_ped, false)
+                    if veh and veh ~= 0 then
+                        VEHICLE.SET_VEHICLE_FIXED(veh)
+                        VEHICLE.SET_VEHICLE_DIRT_LEVEL(veh, 0.0)
+                        notify.success("Vehicle fixed!")
+                    end
+                end)
+                gui.add_option("🎨 Randomize Paint", "Crazy colors", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    local veh = PED.GET_VEHICLE_PED_IS_IN(t_ped, false)
+                    if veh and veh ~= 0 then
+                        VEHICLE.SET_VEHICLE_CUSTOM_PRIMARY_COLOUR(veh, MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255))
+                        VEHICLE.SET_VEHICLE_CUSTOM_SECONDARY_COLOUR(veh, MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255))
+                    end
+                end)
+                gui.add_option("🏎️ Max Performance", "Upgrade engine/turbo", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    local veh = PED.GET_VEHICLE_PED_IS_IN(t_ped, false)
+                    if veh and veh ~= 0 then
+                        VEHICLE.SET_VEHICLE_MOD_KIT(veh, 0)
+                        VEHICLE.SET_VEHICLE_MOD(veh, 11, 3, false) -- Engine
+                        VEHICLE.SET_VEHICLE_MOD(veh, 12, 2, false) -- Brakes
+                        VEHICLE.SET_VEHICLE_MOD(veh, 13, 2, false) -- Transmission
+                        VEHICLE.TOGGLE_VEHICLE_MOD(veh, 18, true)  -- Turbo
+                    end
+                end)
+                
+                gui.set_submenu_context(p_sub)
+                local p_nice_sub = gui.add_submenu("😇 Nice Options", "Helpful interactions")
+                gui.set_submenu_context(p_nice_sub)
+                gui.add_option("🎁 Spawn Care Package", "Drop medkit and armor", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                        safe_spawn_object(MISC.GET_HASH_KEY("prop_medstation_01"), c.x, c.y, c.z)
+                        safe_spawn_object(MISC.GET_HASH_KEY("prop_armour_pickup"), c.x + 1, c.y, c.z)
+                    end
+                end)
+                gui.add_option("🛡️ Hire Bodyguard", "Spawn friendly FIB agent", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                        local bg = safe_spawn_ped(4, MISC.GET_HASH_KEY("s_m_m_fiboffice_01"), c.x, c.y, c.z)
+                        if bg ~= 0 then
+                            WEAPON.GIVE_WEAPON_TO_PED(bg, MISC.GET_HASH_KEY("WEAPON_CARBINERIFLE"), 999, false, true)
+                            PED.SET_PED_AS_GROUP_MEMBER(bg, PED.GET_PED_GROUP_INDEX(t_ped))
+                        end
+                    end
+                end)
+                gui.add_option("🚗 Spawn T20", "Gift a supercar", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(t_ped, 0.0, 5.0, 0.0)
+                        safe_spawn_vehicle(MISC.GET_HASH_KEY("t20"), c.x, c.y, c.z, ENTITY.GET_ENTITY_HEADING(t_ped))
+                    end
+                end)
+                gui.add_option("🕴️ Give Chauffeur", "Limo service", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(t_ped, 0.0, 6.0, 0.0)
+                        local limo = safe_spawn_vehicle(MISC.GET_HASH_KEY("stretch"), c.x, c.y, c.z, ENTITY.GET_ENTITY_HEADING(t_ped))
+                        local driver = safe_spawn_ped(4, MISC.GET_HASH_KEY("s_m_m_linecook"), c.x, c.y, c.z)
+                        if driver ~= 0 and limo ~= 0 then
+                            PED.SET_PED_INTO_VEHICLE(driver, limo, -1)
+                        end
+                    end
+                end)
+                gui.add_option("🚁 Escort Helicopter", "Friendly Buzzard overhead", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(t_ped, 0.0, 0.0, 50.0)
+                        local heli = safe_spawn_vehicle(MISC.GET_HASH_KEY("buzzard2"), c.x, c.y, c.z, 0.0)
+                        local pilot = safe_spawn_ped(4, MISC.GET_HASH_KEY("s_m_m_pilot_01"), c.x, c.y, c.z)
+                        if pilot ~= 0 and heli ~= 0 then
+                            PED.SET_PED_INTO_VEHICLE(pilot, heli, -1)
+                            TASK.TASK_HELI_ESCORT_HELI(pilot, heli, t_ped, 0.0, 50.0, 50.0, 0.0, 50.0, 0.0, 50.0)
+                        end
+                    end
+                end)
+                gui.add_option("🍔 Snack Drop", "Drop ego chasers", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                        safe_spawn_object(MISC.GET_HASH_KEY("prop_choc_ego"), c.x, c.y, c.z)
+                    end
+                end)
+                gui.add_option("🔫 Care Package (Weapons)", "Drop weapons", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                        safe_spawn_object(MISC.GET_HASH_KEY("w_ar_carbinerifle"), c.x, c.y, c.z)
+                        safe_spawn_object(MISC.GET_HASH_KEY("w_lr_rpg"), c.x+1, c.y, c.z)
+                    end
+                end)
+
+                gui.set_submenu_context(p_sub)
+                local p_funny_sub = gui.add_submenu("😂 Funny Options", "Harmless trolling")
+                gui.set_submenu_context(p_funny_sub)
+                gui.add_option("🎈 Attach Giant Sombrero", "Big hat", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local obj = safe_spawn_object(MISC.GET_HASH_KEY("prop_sombrero_01"), 0, 0, 0)
+                        if obj ~= 0 then
+                            ENTITY.ATTACH_ENTITY_TO_ENTITY(obj, t_ped, PED.GET_PED_BONE_INDEX(t_ped, 31086), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+                        end
+                    end
+                end)
+                gui.add_option("🤡 Taunt Player", "Send dancing clowns", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                        for i = 1, 3 do
+                            local clown = safe_spawn_ped(4, MISC.GET_HASH_KEY("s_m_y_clown_01"), c.x + math.random(-3, 3), c.y + math.random(-3, 3), c.z)
+                            if clown ~= 0 then
+                                TASK.TASK_START_SCENARIO_IN_PLACE(clown, "WORLD_HUMAN_CHEERING", 0, true)
+                            end
+                        end
+                    end
+                end)
+                gui.add_option("🛹 Spawn Stunt Ramp", "Force a jump", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local veh = PED.GET_VEHICLE_PED_IS_IN(t_ped, false)
+                        if veh and veh ~= 0 then
+                            local c = ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(veh, 0.0, 15.0, -1.0)
+                            safe_spawn_object(MISC.GET_HASH_KEY("prop_mp_ramp_01"), c.x, c.y, c.z)
+                        end
+                    end
+                end)
+                gui.add_option("🛸 Fake Alien Abduction", "UFO Tractor Beam", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(t_ped, 0.0, 0.0, 20.0)
+                        local ufo = safe_spawn_object(MISC.GET_HASH_KEY("p_spinning_anus_s"), c.x, c.y, c.z)
+                        play_particle_on_entity("core", "alien_tractor_beam", t_ped, 1.0)
+                    end
+                end)
+                gui.add_option("⚠️ Traffic Cone Hat", "Cone head", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local obj = safe_spawn_object(MISC.GET_HASH_KEY("prop_roadcone02a"), 0, 0, 0)
+                        if obj ~= 0 then
+                            ENTITY.ATTACH_ENTITY_TO_ENTITY(obj, t_ped, PED.GET_PED_BONE_INDEX(t_ped, 31086), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+                        end
+                    end
+                end)
+                gui.add_option("🐕 Stray Animal Swarm", "Followed by pets", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                        local animals = {"a_c_pug", "a_c_cat_01", "a_c_pig"}
+                        for i = 1, 5 do
+                            local model = MISC.GET_HASH_KEY(animals[math.random(1, #animals)])
+                            local pet = safe_spawn_ped(28, model, c.x + math.random(-3, 3), c.y + math.random(-3, 3), c.z)
+                            if pet ~= 0 then
+                                TASK.TASK_FOLLOW_TO_OFFSET_OF_ENTITY(pet, t_ped, 0.0, -1.0, 0.0, 2.0, -1, 1.0, true)
+                            end
+                        end
+                    end
+                end)
+                gui.add_option("👯 Clone Dancer", "Dancing clone", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local clone = PED.CLONE_PED(t_ped, ENTITY.GET_ENTITY_HEADING(t_ped) - 180.0, true, false)
+                        if clone ~= 0 then
+                            TASK.TASK_START_SCENARIO_IN_PLACE(clone, "WORLD_HUMAN_PARTYING", 0, true)
+                        end
+                    end
+                end)
+                
+                gui.set_submenu_context(p_sub)
+                local p_unique_sub = gui.add_submenu("✨ Unique Options", "Never seen before")
+                gui.set_submenu_context(p_unique_sub)
+                gui.add_option("📸 Paparazzi Swarm", "Send motorbike photographers", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(t_ped, 0.0, 20.0, 0.0)
+                        local bike = safe_spawn_vehicle(MISC.GET_HASH_KEY("faggio"), c.x, c.y, c.z, 0.0)
+                        local pap = safe_spawn_ped(4, MISC.GET_HASH_KEY("a_m_m_paparazzi_01"), c.x, c.y, c.z)
+                        if bike ~= 0 and pap ~= 0 then
+                            PED.SET_PED_INTO_VEHICLE(pap, bike, -1)
+                            -- Track in state
+                            state.active_paparazzi[#state.active_paparazzi + 1] = {
+                                ped = pap,
+                                bike = bike,
+                                target_pid = p:get_id(),
+                                taking_pics = false
+                            }
+                            notify.success("Paparazzi deployed!")
+                        end
+                    end
+                end)
+                gui.add_option("✈️ Fake Airdrop", "Titan overhead with flare", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
+                        local plane = safe_spawn_vehicle(MISC.GET_HASH_KEY("titan"), c.x, c.y, c.z + 150.0, 0.0)
+                        local flare = safe_spawn_object(MISC.GET_HASH_KEY("prop_flare_01"), c.x, c.y, c.z)
+                        play_particle_on_entity("core", "exp_grd_flare", flare, 1.0)
+                    end
+                end)
+                gui.add_option("🚓 Fake Police Raid", "Dancing cops pull up", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local c = ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(t_ped, 0.0, 10.0, 0.0)
+                        local copcar = safe_spawn_vehicle(MISC.GET_HASH_KEY("police"), c.x, c.y, c.z, 0.0)
+                        VEHICLE.SET_VEHICLE_SIREN(copcar, true)
+                        local cop = safe_spawn_ped(4, MISC.GET_HASH_KEY("s_m_y_cop_01"), c.x, c.y, c.z)
+                        if cop ~= 0 then
+                            TASK.TASK_START_SCENARIO_IN_PLACE(cop, "WORLD_HUMAN_PARTYING", 0, true)
+                        end
+                    end
+                end)
+                gui.add_option("👽 UFO Stalker", "Hovering UFO", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        local ufo = safe_spawn_object(MISC.GET_HASH_KEY("p_spinning_anus_s"), 0, 0, 0)
+                        if ufo ~= 0 then
+                            ENTITY.ATTACH_ENTITY_TO_ENTITY(ufo, t_ped, 0, 0.0, 0.0, 30.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+                        end
+                    end
+                end)
+                gui.add_option("🌧️ Personal Raincloud", "Cloud follows them", function()
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        play_particle_on_entity("core", "water_splash_obj", t_ped, 3.0)
+                    end
+                end)
+                
+                gui.set_submenu_context(p_sub)
+                local p_ptfx_sub = gui.add_submenu("✨ ParticleFX", "Visual effects")
+                gui.set_submenu_context(p_ptfx_sub)
+                
+                gui.add_bool_option("🔄 Loop Effects", "Constantly spawn last effect", state.particle_loop_state.enabled)
+                
+                local function apply_ptfx(dict, effect)
+                    local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
+                    if t_ped and t_ped ~= 0 then
+                        play_particle_on_entity(dict, effect, t_ped, 2.0)
+                        state.particle_loop_state.dict = dict
+                        state.particle_loop_state.effect = effect
+                        state.particle_loop_state.target_pid = p:get_id()
+                    end
+                end
+                
+                gui.add_option("🎇 Fireworks / Confetti", "", function() apply_ptfx("scr_indep_fireworks", "scr_indep_firework_trailburst") end)
+                gui.add_option("💵 Money Rain", "", function() apply_ptfx("core", "ent_brk_banknotes") end)
+                gui.add_option("💨 Colored Smoke", "", function() apply_ptfx("core", "exp_grd_flare") end)
+                gui.add_option("🩸 Blood Geyser", "", function() apply_ptfx("core", "blood_heli_splat") end)
+                gui.add_option("🔥 Campfire Sparks", "", function() apply_ptfx("core", "fire_wrecked_heli_sparks") end)
+                gui.add_option("💦 Water Splash", "", function() apply_ptfx("core", "water_splash_obj") end)
+                gui.add_option("👽 Alien Tractor Beam", "", function() apply_ptfx("core", "alien_tractor_beam") end)
+                gui.add_option("🛸 Alien Teleport Flash", "", function() apply_ptfx("scr_rcbarry2", "scr_exp_alien_teleport") end)
+                gui.add_option("🟢 Alien Dissolve", "", function() apply_ptfx("scr_rcbarry2", "scr_clown_death") end)
+                gui.add_option("🟣 Purple Alien FX", "", function() apply_ptfx("scr_rcbarry2", "scr_alien_teleport") end)
+                gui.add_option("⚡ Electric Shock", "", function() apply_ptfx("core", "ent_dst_elec_fire_sp") end)
+                gui.add_option("❄️ Snowball Explosion", "", function() apply_ptfx("core", "snowball_hit_ped") end)
+                gui.add_option("👻 Ghost Trail", "", function() apply_ptfx("core", "ent_anim_dusty_hands") end)
+                
+
+
                 if not p:is_local() then
                     gui.add_option("📱 Send Friendly SMS", "Send an in-game text", send_friendly_sms)
 
@@ -1922,3 +2361,6 @@ end
 
     gui.reset_submenu_context()
 end)
+    outfit_lock.enabled = false
+    outfit_lock.components = {}
+    outfit_lock.props = {}

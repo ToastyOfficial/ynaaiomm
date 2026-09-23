@@ -1,4 +1,4 @@
-# 🌌 YNAAIOMM v1.1 (Yet Not Another All-In-One Mod Menu) Feature List
+# 🌌 YNAAIOMM v1.2.0 (Yet Not Another All-In-One Mod Menu) Feature List
 
 Here is a comprehensive breakdown of the features currently available in the mod menu:
 
@@ -56,6 +56,13 @@ Here is a comprehensive breakdown of the features currently available in the mod
 - **Custom License Plate**: Set plate text to `ETHEREAL`
 - **Flip Vehicle**: Unflip your vehicle
 - **LSC**: Los Santos Customs On-The-Go
+
+### 🤸 Acrobatics (NEW)
+*Perform stunts with your current vehicle using physics impulse forces*
+- **Jump**: Launch your vehicle upwards
+- **Left Kickflip**: Induce a leftward barrel roll
+- **Right Kickflip**: Induce a rightward barrel roll
+- **Backflip**: Pitch your vehicle backwards mid-air
 
 ### 🏎️ Vehicle Spawner
 *Spawn vehicles with 3D previews*
@@ -129,10 +136,41 @@ Here is a comprehensive breakdown of the features currently available in the mod
 *Interact with players in the lobby*
 - **Player Count**: Displays the total number of players in the session
 - **Individual Player Submenus**:
-  - **General Options**:
+  - **🌟 General Options**:
     - **Teleport to Player**: Move to their exact coordinates
     - **Send Friendly SMS**: Send an in-game text
-  - **Malicious Options**:
+    - **Spectate Player**: Seamlessly view through their camera
+    - **Copy Outfit**: Instantly steal their exact outfit and props
+    - **GPS to Player**: Dynamic waypoint to their location
+  - **🚗 Vehicle Options (Remote)**:
+    - **Fix/Wash Vehicle**: Instantly repairs and cleans the vehicle they are driving
+    - **Randomize Paint**: Applies random colors to their vehicle
+    - **Max Performance**: Max out their engine/turbo upgrades
+  - **😇 Nice Options**:
+    - Spawn Care Packages
+    - Hire Bodyguards
+    - Gift a T20
+    - Give Chauffeurs
+    - Escort Helicopters
+    - Snack Drops
+    - Weapon Drops
+  - **😂 Funny Options**:
+    - Attach Giant Sombrero
+    - Taunt with Clowns
+    - Spawn Stunt Ramp
+    - Fake Alien Abduction
+    - Traffic Cone Hat
+    - Stray Animal Swarms
+    - Clone Dancer
+  - **✨ Unique Options**:
+    - **Paparazzi Swarm**: Spawns NPCs on mopeds that chase the player to take flash photography
+    - **Fake Airdrop**: A massive Titan plane flies over dropping flares
+    - **Fake Police Raid**: Cops pull up on them with sirens blazing and start dancing
+    - **UFO Stalker**: A massive UFO hovers over them perfectly mimicking their movements
+    - **Personal Raincloud**: A localized cartoon raincloud follows them around
+  - **🎇 ParticleFX Menu**: 
+    - Loop 13 different visual particle effects directly onto them (Money Rain, Colored Smoke, Fireworks, Alien Beams, Blood Geysers, Electric Shocks, etc).
+  - **⚠️ Malicious Options**:
     - **Smart Kick**: Removes player from session
     - **Network Timeout**: Blocks their data synchronization
 
