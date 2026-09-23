@@ -1,4 +1,4 @@
--- Yet Not Another All-In-One Mod Menu
+﻿-- Yet Not Another All-In-One Mod Menu
 -- Version: 1.0
 -- @iitztoasty
 
@@ -13,44 +13,86 @@ local state = {
     super_jump = { value = false },
     invisible = { value = false },
     walkable_animations = { value = false },
+    fast_run = { value = false },
+    fast_swim = { value = false },
+    no_ragdoll = { value = false },
+    seatbelt = { value = false },
+    ignored_by_npcs = { value = false },
+    jedi_forcefield = { value = false },
+    fire_breath = { value = false },
+    walk_on_water = { value = false },
 
     -- Vehicle Options
     veh_godmode = { value = false },
     veh_horn_boost = { value = false },
+    invisible_vehicle = { value = false },
+    engine_always_on = { value = false },
 
     -- Weapon Options
     explosive_ammo = { value = false },
     infinite_ammo = { value = false },
+    flaming_ammo = { value = false },
+    explosive_melee = { value = false },
+    one_hit_kill = { value = false },
+    weapon_tint = { value = 0 },
 
     -- World & Visuals
     player_esp = { value = false },
     info_hud = { value = true },
+    time_control = { value = false },
+    time_hour = { value = 12 },
+    blackout = { value = false },
+    low_gravity = { value = false },
+    smooth_transitions = { value = false },
     -- Paparazzi & Particle FX
     active_paparazzi = {},
-    particle_loop_state = { enabled = {value = false}, effect = "", dict = "", target_pid = -1 },
+    particle_loop_state = { enabled = { value = false }, effect = "", dict = "", target_pid = -1 },
 
     -- Vehicle Spawner State
     spawner = {
         preview_handle = 0,
         preview_hash = 0,
         selected_name = ""
-    }
+    },
 
--- OUTFIT PERSISTENCE STATE
+    -- Protections & Settings
+    block_script_events = { value = false },
+    explosion_immunity = { value = false },
+    attachment_protection = { value = false },
+    block_sync_nodes = { value = false },
+    projectile_shield = { value = false },
+    auto_delete_cages = { value = false },
+    auto_save = { value = true },
+    verbose_logs = { value = false }
 }
+
+local outfit_lock = {
+    enabled = false,
+    components = {},
+    props = {}
+}
+
+local component_shirt = { value = 0 }
+local component_pants = { value = 0 }
+local component_shoes = { value = 0 }
+local component_hair = { value = 0 }
+local component_hat = { value = -1 }
+local component_glasses = { value = -1 }
 
 local function save_config()
     for key, ref in pairs(state) do
-        script.set_config(key, ref.value)
+        if type(ref) == "table" and ref.value ~= nil then script.set_config(key, ref.value) end
     end
     notify.success("AIO settings saved to config.")
 end
 
 local function load_config()
     for key, ref in pairs(state) do
-        local val = script.get_config(key, nil)
-        if val ~= nil then
-            ref.value = val
+        if type(ref) == "table" and ref.value ~= nil then
+            local val = script.get_config(key, nil)
+            if val ~= nil then
+                ref.value = val
+            end
         end
     end
 end
@@ -80,6 +122,85 @@ event.register_handler(menu_event.Unload, function()
     save_config()
     drawing.clear()
 end)
+-- ========================================
+-- SYNC NODE HOOK IDs (block_sync_nodes)
+-- ========================================
+local _node_hooks = {} -- stores active node hook ids
+
+local function setup_sync_node_hooks()
+    -- Hook critical sync nodes to prevent malicious mutations
+    -- data_node table provides standard node name->hash mappings per Ethereal API
+    local nodes_to_hook = {
+        node.get_id('CPlayerGameStateDataNode'),
+        node.get_id('CPlayerAppearanceDataNode'),
+        node.get_id('CPedHealthDataNode'),
+        node.get_id('CVehicleProximityMigrationDataNode'),
+    }
+    for _, nid in ipairs(nodes_to_hook) do
+        if nid and nid ~= 0 then
+            local hid = node.create_hook(nid, function(obj, sender, node_data)
+                -- Only block inbound node data from other players that we suspect is malicious.
+                -- We can't read node_data fields without known offsets, so we simply
+                -- block any node sync from non-local players when the toggle is on.
+                if state.block_sync_nodes.value then
+                    if sender and not sender:is_local() then
+                        -- Return true to block/drop this sync node
+                        return true
+                    end
+                end
+                return false
+            end, true, false) -- per_player=true, force_in_scope=false
+            if hid and hid >= 0 then
+                table.insert(_node_hooks, hid)
+                node.enable_hook(hid)
+            end
+        end
+    end
+    if #_node_hooks > 0 then
+        log.info(string.format('YNAAIOMM: Registered %d sync node hooks', #_node_hooks))
+    else
+        log.warn('YNAAIOMM: No sync node hooks registered - node IDs may be unavailable')
+    end
+end
+
+-- Known malicious script event hashes (args[0] values seen in GTA Online TSE attacks).
+-- Ethereal's event.add_script_event_blocker(hash) drops any TSE where args[0] == hash.
+local _tse_blockers_registered = false
+local _known_bad_tse_hashes = {
+    0x73D1E2CF, -- Send to hospital
+    0x9E73F671, -- Force wanted level
+    0xC7ECB980, -- Bounty set
+    0x06B2C5C8, -- CEO kick
+    0x3B088A3F, -- MC kick
+    0x3AD9FDB2, -- Report player (spam)
+    0xE03C1560, -- Force bail script event
+    0x4E57C5E1, -- Spectate exploit
+}
+
+local function register_tse_blockers()
+    if _tse_blockers_registered then return end
+    for _, h in ipairs(_known_bad_tse_hashes) do
+        event.add_script_event_blocker(h)
+    end
+    _tse_blockers_registered = true
+    log.info('YNAAIOMM: TSE blockers registered')
+end
+
+local function unregister_tse_blockers()
+    if not _tse_blockers_registered then return end
+    for _, h in ipairs(_known_bad_tse_hashes) do
+        event.remove_script_event_blocker(h)
+    end
+    _tse_blockers_registered = false
+    log.info('YNAAIOMM: TSE blockers removed')
+end
+
+-- Also log all received script events when block toggle is on for debugging
+event.register_handler(menu_event.ScriptedGameEventReceived, function(data)
+    if state.block_script_events.value and data.args and #data.args > 0 then
+        log.info(string.format('TSE from %s | hash=0x%X | args=%d', data.name, data.args[1], #data.args))
+    end
+end)
 
 -- ========================================
 -- MAIN LOOP (TICK)
@@ -106,7 +227,8 @@ function tick()
         if t_ped and t_ped ~= 0 and ENTITY.DOES_ENTITY_EXIST(t_ped) then
             if request_particle_dict(state.particle_loop_state.dict) then
                 GRAPHICS.USE_PARTICLE_FX_ASSET(state.particle_loop_state.dict)
-                GRAPHICS.START_PARTICLE_FX_NON_LOOPED_ON_ENTITY(state.particle_loop_state.effect, t_ped, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, false, false, false)
+                GRAPHICS.START_PARTICLE_FX_NON_LOOPED_ON_ENTITY(state.particle_loop_state.effect, t_ped, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0, false, false, false)
             end
         else
             state.particle_loop_state.enabled.value = false
@@ -121,7 +243,7 @@ function tick()
                 local p_pos = ENTITY.GET_ENTITY_COORDS(p_data.ped, true)
                 local t_pos = ENTITY.GET_ENTITY_COORDS(t_ped, true)
                 local dist = SYSTEM.VDIST(p_pos.x, p_pos.y, p_pos.z, t_pos.x, t_pos.y, t_pos.z)
-                
+
                 if dist < 10.0 and not p_data.taking_pics then
                     if PED.IS_PED_IN_ANY_VEHICLE(p_data.ped, false) then
                         TASK.TASK_LEAVE_ANY_VEHICLE(p_data.ped, 0, 0)
@@ -145,8 +267,41 @@ function tick()
 
     -- 1. Self Modifiers
     if ped ~= 0 then
-        ENTITY.SET_ENTITY_INVINCIBLE(ped, state.godmode.value)
-        ENTITY.SET_ENTITY_VISIBLE(ped, not state.invisible.value, false)
+        -- GODMODE: 3-layer approach for true network-synced invincibility
+        -- Layer 1: SET_PLAYER_INVINCIBLE is synced to other clients (they see you as invincible)
+        -- Layer 2: Full entity proofs (bullet, fire, explosion, melee, steam, drown, water)
+        -- Layer 3: Refill health and armor each frame as a hard safety net
+        if state.godmode.value then
+            PLAYER.SET_PLAYER_INVINCIBLE(pid, true)
+            ENTITY.SET_ENTITY_PROOFS(ped, true, true, true, true, true, true, true, true)
+            local max_hp = ENTITY.GET_ENTITY_MAX_HEALTH(ped)
+            if ENTITY.GET_ENTITY_HEALTH(ped) < max_hp then
+                ENTITY.SET_ENTITY_HEALTH(ped, max_hp, 0, 0)
+            end
+            if PLAYER.GET_PLAYER_ARMOUR(pid) < 100 then
+                PED.SET_PED_ARMOUR(ped, 100)
+            end
+        else
+            PLAYER.SET_PLAYER_INVINCIBLE(pid, false)
+            -- Only clear proofs if explosion_immunity is also off to avoid conflict
+            if not state.explosion_immunity.value then
+                ENTITY.SET_ENTITY_PROOFS(ped, false, false, false, false, false, false, false, false)
+            end
+        end
+
+        -- INVISIBILITY: 3-layer approach for network-synced invisibility
+        -- Layer 1: NETWORK_CONCEAL_PLAYER removes the player from all other clients' render lists
+        -- Layer 2: SET_ENTITY_ALPHA(0) makes ped fully transparent locally
+        -- Layer 3: SET_ENTITY_VISIBLE(false) hides ped in local render pipeline
+        if state.invisible.value then
+            NETWORK.NETWORK_CONCEAL_PLAYER(pid, true, true)
+            ENTITY.SET_ENTITY_ALPHA(ped, 0, false)
+            ENTITY.SET_ENTITY_VISIBLE(ped, false, false)
+        else
+            NETWORK.NETWORK_CONCEAL_PLAYER(pid, false, false)
+            ENTITY.RESET_ENTITY_ALPHA(ped)
+            ENTITY.SET_ENTITY_VISIBLE(ped, true, false)
+        end
 
         if state.super_jump.value then
             MISC.SET_SUPER_JUMP_THIS_FRAME(pid)
@@ -165,6 +320,25 @@ function tick()
         if state.explosive_ammo.value then
             MISC.SET_EXPLOSIVE_AMMO_THIS_FRAME(pid)
         end
+        if state.flaming_ammo.value then MISC.SET_FIRE_AMMO_THIS_FRAME(pid) end
+        if state.explosive_melee.value then MISC.SET_EXPLOSIVE_MELEE_THIS_FRAME(pid) end
+
+        if state.fast_run.value then
+            PLAYER.SET_RUN_SPRINT_MULTIPLIER_FOR_PLAYER(pid, 1.49)
+        else
+            PLAYER
+                .SET_RUN_SPRINT_MULTIPLIER_FOR_PLAYER(pid, 1.0)
+        end
+        if state.fast_swim.value then
+            PLAYER.SET_SWIM_MULTIPLIER_FOR_PLAYER(pid, 1.49)
+        else
+            PLAYER
+                .SET_SWIM_MULTIPLIER_FOR_PLAYER(pid, 1.0)
+        end
+        PED.SET_PED_CAN_RAGDOLL(ped, not state.no_ragdoll.value)
+        PED.SET_PED_CONFIG_FLAG(ped, 32, not state.seatbelt.value)
+        PLAYER.SET_POLICE_IGNORE_PLAYER(pid, state.ignored_by_npcs.value)
+        PLAYER.SET_EVERYONE_IGNORE_PLAYER(pid, state.ignored_by_npcs.value)
     end
 
     -- 2. Vehicle Modifiers
@@ -179,6 +353,157 @@ function tick()
                     forward_vector.z * 20.0, 0.0, 0.0, 0.0, 0, true, true, true, false, true)
             end
         end
+        ENTITY.SET_ENTITY_VISIBLE(veh, not state.invisible_vehicle.value, false)
+        if state.engine_always_on.value then VEHICLE.SET_VEHICLE_ENGINE_ON(veh, true, true, false) end
+    end
+
+    -- World & Protections
+    if state.time_control.value then NETWORK.NETWORK_OVERRIDE_CLOCK_TIME(state.time_hour.value, 0, 0) end
+    if state.blackout.value then GRAPHICS.SET_ARTIFICIAL_LIGHTS_STATE(true) else GRAPHICS.SET_ARTIFICIAL_LIGHTS_STATE(false) end
+    if state.low_gravity.value then MISC.SET_GRAVITY_LEVEL(1) else MISC.SET_GRAVITY_LEVEL(0) end
+
+    if state.explosion_immunity.value then
+        ENTITY.SET_ENTITY_PROOFS(ped, false, false, true, false, false, false, false,
+            false)
+    end
+
+    -- 4. Complex Tick Handlers
+
+    -- Jedi Forcefield: repel nearby peds and vehicles away from player
+    if state.jedi_forcefield.value and ped ~= 0 then
+        local my_pos = ENTITY.GET_ENTITY_COORDS(ped, true)
+        local function repel_entities(list)
+            for _, e in ipairs(list) do
+                if e ~= ped and e ~= veh and ENTITY.DOES_ENTITY_EXIST(e) then
+                    local ep = ENTITY.GET_ENTITY_COORDS(e, true)
+                    local dx, dy = ep.x - my_pos.x, ep.y - my_pos.y
+                    local dist = math.sqrt(dx * dx + dy * dy)
+                    if dist < 15.0 and dist > 0.1 then
+                        local nx, ny = dx / dist, dy / dist
+                        ENTITY.APPLY_FORCE_TO_ENTITY(e, 1, nx * 25.0, ny * 25.0, 2.0, 0, 0, 0, 0, true, true, true, false,
+                            true)
+                    end
+                end
+            end
+        end
+        repel_entities(entities.get_all_peds())
+        repel_entities(entities.get_all_vehicles())
+    end
+
+    -- Fire Breath: spawn small explosion in front when doing unarmed melee
+    -- WEAPON.GET_SELECTED_PED_WEAPON is the correct native (not GET_CURRENT_PED_WEAPON_HASH)
+    -- FIRE.ADD_EXPLOSION takes 9 params: x,y,z,type,damageScale,isAudible,isInvisible,camShake,noDamage
+    if state.fire_breath.value and ped ~= 0 then
+        local cur_weapon = WEAPON.GET_SELECTED_PED_WEAPON(ped)
+        -- joaat("WEAPON_UNARMED") = 0xA2719263
+        if cur_weapon == 0xA2719263 and PED.IS_PED_IN_MELEE_ACTION(ped) then
+            local fwd = ENTITY.GET_ENTITY_FORWARD_VECTOR(ped)
+            local pos = ENTITY.GET_ENTITY_COORDS(ped, true)
+            -- Type 9 = EXPLOSION_HI_OCTANE_PETROL, noDamage=false so it hurts targets
+            FIRE.ADD_EXPLOSION(pos.x + fwd.x * 1.8, pos.y + fwd.y * 1.8, pos.z + 0.4, 9, 0.8, true, false, 0.0, false)
+        end
+    end
+
+    -- Walk on Water: keep ped above water surface
+    -- Native signature: BOOL GET_WATER_HEIGHT_NO_WAVES(float x, float y, float z, float* height)
+    -- Ethereal returns (bool, float) as two values; do NOT pass 0.0 as 4th arg (it's an output)
+    if state.walk_on_water.value and ped ~= 0 then
+        local pos = ENTITY.GET_ENTITY_COORDS(ped, true)
+        local found, wz = WATER.GET_WATER_HEIGHT_NO_WAVES(pos.x, pos.y, pos.z)
+        if found and type(wz) == "number" and pos.z < wz + 0.15 then
+            ENTITY.SET_ENTITY_COORDS_NO_OFFSET(ped, pos.x, pos.y, wz + 0.1, true, true, false)
+            ENTITY.SET_ENTITY_VELOCITY(ped, 0.0, 0.0, 0.0)
+        end
+    end
+
+    -- One-Hit Kill: instantly kill any nearby ped that has taken damage
+    if state.one_hit_kill.value and ped ~= 0 then
+        local my_pos = ENTITY.GET_ENTITY_COORDS(ped, true)
+        for _, e in ipairs(entities.get_all_peds()) do
+            if e ~= ped and ENTITY.DOES_ENTITY_EXIST(e) then
+                local ep = ENTITY.GET_ENTITY_COORDS(e, true)
+                local dx, dy = ep.x - my_pos.x, ep.y - my_pos.y
+                if math.sqrt(dx * dx + dy * dy) < 3.5 then
+                    local hp = ENTITY.GET_ENTITY_HEALTH(e)
+                    local max_hp = ENTITY.GET_ENTITY_MAX_HEALTH(e)
+                    if hp > 0 and hp < max_hp then
+                        ENTITY.SET_ENTITY_HEALTH(e, 0, 0, 0)
+                    end
+                end
+            end
+        end
+    end
+
+    -- Projectile Shield: delete incoming rockets/grenades within 20m
+    if state.projectile_shield.value and ped ~= 0 then
+        local my_pos       = ENTITY.GET_ENTITY_COORDS(ped, true)
+        local rpg_rocket   = MISC.GET_HASH_KEY('w_lr_rpg_rocket')
+        local sticky_bomb  = MISC.GET_HASH_KEY('w_ex_stickybomb')
+        local grenade_hash = MISC.GET_HASH_KEY('w_ex_grenade')
+        for _, obj in ipairs(entities.get_all_objects()) do
+            if ENTITY.DOES_ENTITY_EXIST(obj) then
+                local op = ENTITY.GET_ENTITY_COORDS(obj, true)
+                local dx, dy, dz = op.x - my_pos.x, op.y - my_pos.y, op.z - my_pos.z
+                if math.sqrt(dx * dx + dy * dy + dz * dz) < 20.0 then
+                    local m = ENTITY.GET_ENTITY_MODEL(obj)
+                    if m == rpg_rocket or m == sticky_bomb or m == grenade_hash then
+                        if entities.request_control(obj) then entities.delete(obj) end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Attachment Protection: detach any object forcibly attached to the player
+    if state.attachment_protection.value and ped ~= 0 then
+        if ENTITY.IS_ENTITY_ATTACHED(ped) then
+            ENTITY.DETACH_ENTITY(ped, true, true)
+        end
+        for _, obj in ipairs(entities.get_all_objects()) do
+            if ENTITY.DOES_ENTITY_EXIST(obj) and ENTITY.IS_ENTITY_ATTACHED_TO_ENTITY(obj, ped) then
+                ENTITY.DETACH_ENTITY(obj, true, true)
+                if entities.request_control(obj) then entities.delete(obj) end
+            end
+        end
+    end
+
+    -- Auto-Delete Cages: delete known cage props spawned within 2.5m of the player
+    if state.auto_delete_cages.value and ped ~= 0 then
+        local my_pos = ENTITY.GET_ENTITY_COORDS(ped, true)
+        local cage_hashes = {
+            MISC.GET_HASH_KEY('prop_cage_van_01'), MISC.GET_HASH_KEY('prop_mp_cage_01'),
+            MISC.GET_HASH_KEY('prop_mp_cage_02'), MISC.GET_HASH_KEY('p_spinning_anus_s'),
+            MISC.GET_HASH_KEY('prop_cj_cage'), MISC.GET_HASH_KEY('prop_con_cage01'),
+            MISC.GET_HASH_KEY('prop_con_cage02'), MISC.GET_HASH_KEY('prop_con_cage03a')
+        }
+        for _, obj in ipairs(entities.get_all_objects()) do
+            if ENTITY.DOES_ENTITY_EXIST(obj) then
+                local op = ENTITY.GET_ENTITY_COORDS(obj, true)
+                local dx, dy, dz = op.x - my_pos.x, op.y - my_pos.y, op.z - my_pos.z
+                if math.sqrt(dx * dx + dy * dy + dz * dz) < 2.5 then
+                    local m = ENTITY.GET_ENTITY_MODEL(obj)
+                    for _, ch in ipairs(cage_hashes) do
+                        if m == ch then
+                            if entities.request_control(obj) then entities.delete(obj) end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    -- Block Script Events: register/unregister TSE blockers based on toggle
+    if state.block_script_events.value then
+        register_tse_blockers()
+    else
+        unregister_tse_blockers()
+    end
+
+    -- Block Sync Nodes: setup node hooks once when toggle is first enabled
+    -- (hooks stay registered; callback is gated by state.block_sync_nodes.value)
+    if state.block_sync_nodes.value and #_node_hooks == 0 then
+        setup_sync_node_hooks()
     end
 
     -- 3. Visuals & ESP
@@ -357,7 +682,8 @@ end
 local function play_particle_on_entity(dict, name, entity, scale)
     if request_particle_dict(dict) then
         GRAPHICS.USE_PARTICLE_FX_ASSET(dict)
-        GRAPHICS.START_PARTICLE_FX_NON_LOOPED_ON_ENTITY(name, entity, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, scale or 1.0, false, false, false)
+        GRAPHICS.START_PARTICLE_FX_NON_LOOPED_ON_ENTITY(name, entity, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, scale or 1.0, false,
+            false, false)
     end
 end
 
@@ -779,32 +1105,32 @@ local function break_free()
     end)
 end
 
-local function teleport_to_player()
+local function teleport_to_player(p, p_name)
     local pos = p:get_pos()
     -- Elevate slightly to avoid clipping through ground
     self.teleport(pos.x, pos.y, pos.z + 1.5)
     notify.success("Teleported to " .. p_name)
 end
 
-local function send_friendly_sms()
+local function send_friendly_sms(p, p_name)
     network.send_text_message(p:id(), "Hello from Ethereal AIO!")
     notify.success("Message sent.")
 end
 
-local function smart_kick()
+local function smart_kick(p, p_name)
     network.kick_player(p:id())
     notify.warning("Attempting to kick " .. p_name)
 end
 
-local function network_timeout()
-    p:set_timeout(10000, "all")                     -- Drops sync for 10 seconds
+local function network_timeout(p, p_name)
+    p:set_timeout(10000, "all") -- Drops sync for 10 seconds
     notify.info("Applied 10s sync timeout to " .. p_name)
 end
 
-local function save_config()
-    save_config()
-    notify.success("Configuration saved to disk.")
-end
+-- local function save_config()
+--    save_config()
+--    notify.success("Configuration saved to disk.")
+-- end
 
 local function reload_config()
     notify.info("Config reloaded from disk.")
@@ -819,8 +1145,8 @@ gui.register_menu("YNAAIOMM", function()
     -- Submenu: Self Options
     local self_menu = gui.add_submenu("👤 Self Options", "Modifications for your local player")
     gui.set_submenu_context(self_menu)
-    gui.add_bool_option("🛡️ Godmode", "Prevents all damage", state.godmode)
-    gui.add_bool_option("👻 Invisibility", "Make your player model invisible", state.invisible)
+    gui.add_bool_option("🛡️ Godmode", "Unkillable by anyone including other players", state.godmode)
+    gui.add_bool_option("👻 Invisibility", "Hidden from all players in session", state.invisible)
     gui.add_bool_option("🚓 Never Wanted", "Automatically clears police wanted level", state.never_wanted)
     gui.add_bool_option("🦘 Super Jump", "Jump incredibly high", state.super_jump)
     gui.add_break("=== MOVEMENT & PHYSICS ===")
@@ -1011,10 +1337,10 @@ gui.register_menu("YNAAIOMM", function()
     gui.add_option("✨ Spawn T20", "Spawns a Progen T20 directly into your control", spawn_t20)
 
     gui.add_break("=== VEHICLE MODS ===")
-    gui.add_bool_option("🛡️ Vehicle Godmode", "Invincible car", state.vehicle_godmode)
+    gui.add_bool_option("🛡️ Vehicle Godmode", "Invincible car", state.veh_godmode)
     gui.add_bool_option("✨ Invisible Vehicle", "Invisible car", state.invisible_vehicle)
     gui.add_bool_option("✨ Engine Always On", "Keep engine running when exiting", state.engine_always_on)
-    gui.add_bool_option("✨ Horn Boost", "Hold horn to boost forward", state.horn_boost)
+    gui.add_bool_option("✨ Horn Boost", "Hold horn to boost forward", state.veh_horn_boost)
     gui.add_option("✨ Max Upgrades", "Apply full upgrades instantly", max_upgrades)
     gui.add_option("✨ Custom License Plate (ETHEREAL)", "Change plate text", custom_license_plate_ethereal)
     gui.add_option("✨ Flip Vehicle", "Unflip your vehicle", flip_vehicle)
@@ -1844,41 +2170,41 @@ gui.register_menu("YNAAIOMM", function()
 
     -- Submenu: Teleport Options
 
-if state.smooth_transitions == nil then
-    state.smooth_transitions = { value = false }
-end
-
-local function smart_teleport(x, y, z)
-    if state.smooth_transitions.value then
-        local ped = self.get_ped()
-        STREAMING.SWITCH_OUT_PLAYER(ped, 0, 1)
-        while STREAMING.GET_PLAYER_SWITCH_STATE() < 2 do
-            script.yield(50)
-        end
-        self.teleport(x, y, z)
-        STREAMING.SWITCH_IN_PLAYER(ped)
-        while STREAMING.GET_PLAYER_SWITCH_STATE() ~= 0 do
-            script.yield(50)
-        end
-    else
-        self.teleport(x, y, z)
+    if state.smooth_transitions == nil then
+        state.smooth_transitions = { value = false }
     end
-end
 
-local function teleport_to_waypoint()
-    local blip = HUD.GET_FIRST_BLIP_INFO_ID(8)
-    if HUD.DOES_BLIP_EXIST(blip) then
-        local coord = HUD.GET_BLIP_INFO_ID_COORD(blip)
-        local target_z = coord.z
-        if target_z == 0.0 then
-            target_z = 100.0
+    local function smart_teleport(x, y, z)
+        if state.smooth_transitions.value then
+            local ped = self.get_ped()
+            STREAMING.SWITCH_OUT_PLAYER(ped, 0, 1)
+            while STREAMING.GET_PLAYER_SWITCH_STATE() < 2 do
+                script.yield(50)
+            end
+            self.teleport(x, y, z)
+            STREAMING.SWITCH_IN_PLAYER(ped)
+            while STREAMING.GET_PLAYER_SWITCH_STATE() ~= 0 do
+                script.yield(50)
+            end
+        else
+            self.teleport(x, y, z)
         end
-        smart_teleport(coord.x, coord.y, target_z)
-        notify.success("Teleported to Waypoint")
-    else
-        notify.error("No waypoint set!")
     end
-end
+
+    local function teleport_to_waypoint()
+        local blip = HUD.GET_FIRST_BLIP_INFO_ID(8)
+        if HUD.DOES_BLIP_EXIST(blip) then
+            local coord = HUD.GET_BLIP_INFO_ID_COORD(blip)
+            local target_z = coord.z
+            if target_z == 0.0 then
+                target_z = 100.0
+            end
+            smart_teleport(coord.x, coord.y, target_z)
+            notify.success("Teleported to Waypoint")
+        else
+            notify.error("No waypoint set!")
+        end
+    end
 
     local teleport_sub = gui.add_submenu("🗺️ Teleport Options", "Teleport around the map")
     gui.set_submenu_context(teleport_sub)
@@ -2035,7 +2361,8 @@ end
                 gui.set_submenu_context(p_sub)
 
                 gui.add_break("=== GENERAL OPTIONS ===")
-                gui.add_option("🚀 Teleport to Player", "Move to their exact coordinates", teleport_to_player)
+                gui.add_option("🚀 Teleport to Player", "Move to their exact coordinates",
+                    function() teleport_to_player(p, p_name) end)
 
                 gui.add_option("👀 Spectate Player", "Watch their camera", function()
                     local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
@@ -2073,8 +2400,10 @@ end
                     local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
                     local veh = PED.GET_VEHICLE_PED_IS_IN(t_ped, false)
                     if veh and veh ~= 0 then
-                        VEHICLE.SET_VEHICLE_CUSTOM_PRIMARY_COLOUR(veh, MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255))
-                        VEHICLE.SET_VEHICLE_CUSTOM_SECONDARY_COLOUR(veh, MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255))
+                        VEHICLE.SET_VEHICLE_CUSTOM_PRIMARY_COLOUR(veh, MISC.GET_RANDOM_INT_IN_RANGE(0, 255),
+                            MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255))
+                        VEHICLE.SET_VEHICLE_CUSTOM_SECONDARY_COLOUR(veh, MISC.GET_RANDOM_INT_IN_RANGE(0, 255),
+                            MISC.GET_RANDOM_INT_IN_RANGE(0, 255), MISC.GET_RANDOM_INT_IN_RANGE(0, 255))
                     end
                 end)
                 gui.add_option("🏎️ Max Performance", "Upgrade engine/turbo", function()
@@ -2088,7 +2417,7 @@ end
                         VEHICLE.TOGGLE_VEHICLE_MOD(veh, 18, true)  -- Turbo
                     end
                 end)
-                
+
                 gui.set_submenu_context(p_sub)
                 local p_nice_sub = gui.add_submenu("😇 Nice Options", "Helpful interactions")
                 gui.set_submenu_context(p_nice_sub)
@@ -2122,7 +2451,8 @@ end
                     local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
                     if t_ped and t_ped ~= 0 then
                         local c = ENTITY.GET_OFFSET_FROM_ENTITY_IN_WORLD_COORDS(t_ped, 0.0, 6.0, 0.0)
-                        local limo = safe_spawn_vehicle(MISC.GET_HASH_KEY("stretch"), c.x, c.y, c.z, ENTITY.GET_ENTITY_HEADING(t_ped))
+                        local limo = safe_spawn_vehicle(MISC.GET_HASH_KEY("stretch"), c.x, c.y, c.z,
+                            ENTITY.GET_ENTITY_HEADING(t_ped))
                         local driver = safe_spawn_ped(4, MISC.GET_HASH_KEY("s_m_m_linecook"), c.x, c.y, c.z)
                         if driver ~= 0 and limo ~= 0 then
                             PED.SET_PED_INTO_VEHICLE(driver, limo, -1)
@@ -2153,7 +2483,7 @@ end
                     if t_ped and t_ped ~= 0 then
                         local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
                         safe_spawn_object(MISC.GET_HASH_KEY("w_ar_carbinerifle"), c.x, c.y, c.z)
-                        safe_spawn_object(MISC.GET_HASH_KEY("w_lr_rpg"), c.x+1, c.y, c.z)
+                        safe_spawn_object(MISC.GET_HASH_KEY("w_lr_rpg"), c.x + 1, c.y, c.z)
                     end
                 end)
 
@@ -2165,7 +2495,8 @@ end
                     if t_ped and t_ped ~= 0 then
                         local obj = safe_spawn_object(MISC.GET_HASH_KEY("prop_sombrero_01"), 0, 0, 0)
                         if obj ~= 0 then
-                            ENTITY.ATTACH_ENTITY_TO_ENTITY(obj, t_ped, PED.GET_PED_BONE_INDEX(t_ped, 31086), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+                            ENTITY.ATTACH_ENTITY_TO_ENTITY(obj, t_ped, PED.GET_PED_BONE_INDEX(t_ped, 31086), 0.0, 0.0,
+                                0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
                         end
                     end
                 end)
@@ -2174,7 +2505,8 @@ end
                     if t_ped and t_ped ~= 0 then
                         local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
                         for i = 1, 3 do
-                            local clown = safe_spawn_ped(4, MISC.GET_HASH_KEY("s_m_y_clown_01"), c.x + math.random(-3, 3), c.y + math.random(-3, 3), c.z)
+                            local clown = safe_spawn_ped(4, MISC.GET_HASH_KEY("s_m_y_clown_01"), c.x + math.random(-3, 3),
+                                c.y + math.random(-3, 3), c.z)
                             if clown ~= 0 then
                                 TASK.TASK_START_SCENARIO_IN_PLACE(clown, "WORLD_HUMAN_CHEERING", 0, true)
                             end
@@ -2204,7 +2536,8 @@ end
                     if t_ped and t_ped ~= 0 then
                         local obj = safe_spawn_object(MISC.GET_HASH_KEY("prop_roadcone02a"), 0, 0, 0)
                         if obj ~= 0 then
-                            ENTITY.ATTACH_ENTITY_TO_ENTITY(obj, t_ped, PED.GET_PED_BONE_INDEX(t_ped, 31086), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+                            ENTITY.ATTACH_ENTITY_TO_ENTITY(obj, t_ped, PED.GET_PED_BONE_INDEX(t_ped, 31086), 0.0, 0.0,
+                                0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
                         end
                     end
                 end)
@@ -2212,10 +2545,11 @@ end
                     local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
                     if t_ped and t_ped ~= 0 then
                         local c = ENTITY.GET_ENTITY_COORDS(t_ped, true)
-                        local animals = {"a_c_pug", "a_c_cat_01", "a_c_pig"}
+                        local animals = { "a_c_pug", "a_c_cat_01", "a_c_pig" }
                         for i = 1, 5 do
                             local model = MISC.GET_HASH_KEY(animals[math.random(1, #animals)])
-                            local pet = safe_spawn_ped(28, model, c.x + math.random(-3, 3), c.y + math.random(-3, 3), c.z)
+                            local pet = safe_spawn_ped(28, model, c.x + math.random(-3, 3), c.y + math.random(-3, 3), c
+                                .z)
                             if pet ~= 0 then
                                 TASK.TASK_FOLLOW_TO_OFFSET_OF_ENTITY(pet, t_ped, 0.0, -1.0, 0.0, 2.0, -1, 1.0, true)
                             end
@@ -2231,7 +2565,7 @@ end
                         end
                     end
                 end)
-                
+
                 gui.set_submenu_context(p_sub)
                 local p_unique_sub = gui.add_submenu("✨ Unique Options", "Never seen before")
                 gui.set_submenu_context(p_unique_sub)
@@ -2280,7 +2614,8 @@ end
                     if t_ped and t_ped ~= 0 then
                         local ufo = safe_spawn_object(MISC.GET_HASH_KEY("p_spinning_anus_s"), 0, 0, 0)
                         if ufo ~= 0 then
-                            ENTITY.ATTACH_ENTITY_TO_ENTITY(ufo, t_ped, 0, 0.0, 0.0, 30.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+                            ENTITY.ATTACH_ENTITY_TO_ENTITY(ufo, t_ped, 0, 0.0, 0.0, 30.0, 0.0, 0.0, 0.0, false, false,
+                                false, false, 2, true)
                         end
                     end
                 end)
@@ -2290,13 +2625,13 @@ end
                         play_particle_on_entity("core", "water_splash_obj", t_ped, 3.0)
                     end
                 end)
-                
+
                 gui.set_submenu_context(p_sub)
                 local p_ptfx_sub = gui.add_submenu("✨ ParticleFX", "Visual effects")
                 gui.set_submenu_context(p_ptfx_sub)
-                
+
                 gui.add_bool_option("🔄 Loop Effects", "Constantly spawn last effect", state.particle_loop_state.enabled)
-                
+
                 local function apply_ptfx(dict, effect)
                     local t_ped = PLAYER.GET_PLAYER_PED_SCRIPT_INDEX(p:get_id())
                     if t_ped and t_ped ~= 0 then
@@ -2306,30 +2641,34 @@ end
                         state.particle_loop_state.target_pid = p:get_id()
                     end
                 end
-                
-                gui.add_option("🎇 Fireworks / Confetti", "", function() apply_ptfx("scr_indep_fireworks", "scr_indep_firework_trailburst") end)
+
+                gui.add_option("🎇 Fireworks / Confetti", "",
+                    function() apply_ptfx("scr_indep_fireworks", "scr_indep_firework_trailburst") end)
                 gui.add_option("💵 Money Rain", "", function() apply_ptfx("core", "ent_brk_banknotes") end)
                 gui.add_option("💨 Colored Smoke", "", function() apply_ptfx("core", "exp_grd_flare") end)
                 gui.add_option("🩸 Blood Geyser", "", function() apply_ptfx("core", "blood_heli_splat") end)
                 gui.add_option("🔥 Campfire Sparks", "", function() apply_ptfx("core", "fire_wrecked_heli_sparks") end)
                 gui.add_option("💦 Water Splash", "", function() apply_ptfx("core", "water_splash_obj") end)
                 gui.add_option("👽 Alien Tractor Beam", "", function() apply_ptfx("core", "alien_tractor_beam") end)
-                gui.add_option("🛸 Alien Teleport Flash", "", function() apply_ptfx("scr_rcbarry2", "scr_exp_alien_teleport") end)
+                gui.add_option("🛸 Alien Teleport Flash", "",
+                    function() apply_ptfx("scr_rcbarry2", "scr_exp_alien_teleport") end)
                 gui.add_option("🟢 Alien Dissolve", "", function() apply_ptfx("scr_rcbarry2", "scr_clown_death") end)
                 gui.add_option("🟣 Purple Alien FX", "", function() apply_ptfx("scr_rcbarry2", "scr_alien_teleport") end)
                 gui.add_option("⚡ Electric Shock", "", function() apply_ptfx("core", "ent_dst_elec_fire_sp") end)
                 gui.add_option("❄️ Snowball Explosion", "", function() apply_ptfx("core", "snowball_hit_ped") end)
                 gui.add_option("👻 Ghost Trail", "", function() apply_ptfx("core", "ent_anim_dusty_hands") end)
-                
+
 
 
                 if not p:is_local() then
-                    gui.add_option("📱 Send Friendly SMS", "Send an in-game text", send_friendly_sms)
+                    gui.add_option("📱 Send Friendly SMS", "Send an in-game text",
+                        function() send_friendly_sms(p, p_name) end)
 
                     gui.add_break("=== MALICIOUS OPTIONS ===")
-                    gui.add_option("🥾 Smart Kick", "Removes player from session", smart_kick)
+                    gui.add_option("🥾 Smart Kick", "Removes player from session", function() smart_kick(p, p_name) end)
 
-                    gui.add_option("🔌 Network Timeout", "Blocks their data synchronization", network_timeout)
+                    gui.add_option("🔌 Network Timeout", "Blocks their data synchronization",
+                        function() network_timeout(p, p_name) end)
                 end
 
                 gui.reset_submenu_context()
@@ -2361,6 +2700,3 @@ end
 
     gui.reset_submenu_context()
 end)
-    outfit_lock.enabled = false
-    outfit_lock.components = {}
-    outfit_lock.props = {}
