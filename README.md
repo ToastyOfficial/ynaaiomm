@@ -89,7 +89,7 @@ Here is a comprehensive breakdown of the features currently available in the mod
 
 ---
 
-## 🗺️ Teleport Options (NEW)
+## 🗺️ Teleport Options
 *Teleport around the map*
 - **🔄 Smooth Transitions**: Use story mode character switch transition for all teleports
 - **🚩 Teleport to Waypoint**: Teleport instantly to your placed waypoint on the map
