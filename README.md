@@ -89,7 +89,7 @@ Here is a comprehensive breakdown of the features currently available in the mod
 
 ---
 
-## 🗺️ Teleport Options
+## 🗺️ Teleport Options (NEW)
 *Teleport around the map*
 - **🔄 Smooth Transitions**: Use story mode character switch transition for all teleports
 - **🚩 Teleport to Waypoint**: Teleport instantly to your placed waypoint on the map
@@ -147,21 +147,21 @@ Here is a comprehensive breakdown of the features currently available in the mod
     - **Randomize Paint**: Applies random colors to their vehicle
     - **Max Performance**: Max out their engine/turbo upgrades
   - **😇 Nice Options**:
-    - Spawn Care Packages
-    - Hire Bodyguards
-    - Gift a T20
-    - Give Chauffeurs
-    - Escort Helicopters
-    - Snack Drops
-    - Weapon Drops
+    - **Spawn Care Packages**: Drops health, armor, and parachutes near the player
+    - **Hire Bodyguards**: Spawns friendly FIB agents that will protect the player
+    - **Gift a T20**: Spawns a fully upgraded Progen T20 directly in front of them
+    - **Give Chauffeurs**: Summons an NPC driver in a luxury vehicle to pick them up
+    - **Escort Helicopters**: Calls in a Buzzard helicopter to provide aerial cover
+    - **Snack Drops**: Showers the player with P's & Q's and Meteorites for health regen
+    - **Weapon Drops**: Spawns a crate containing all Mk II weapons and explosives
   - **😂 Funny Options**:
-    - Attach Giant Sombrero
-    - Taunt with Clowns
-    - Spawn Stunt Ramp
-    - Fake Alien Abduction
-    - Traffic Cone Hat
-    - Stray Animal Swarms
-    - Clone Dancer
+    - **Attach Giant Sombrero**: Glues an oversized sombrero prop to the player's head
+    - **Taunt with Clowns**: Spawns a group of clowns that honk horns and follow the player
+    - **Spawn Stunt Ramp**: Instantly places a large stunt ramp in front of their vehicle
+    - **Fake Alien Abduction**: Spawns an alien spaceship beam and teleports them straight up
+    - **Traffic Cone Hat**: Places a bright orange traffic cone perfectly on their head
+    - **Stray Animal Swarms**: Surrounds the player with a herd of stray cats and dogs
+    - **Clone Dancer**: Spawns an exact clone of the player that continuously dances
   - **✨ Unique Options**:
     - **Paparazzi Swarm**: Spawns NPCs on mopeds that chase the player to take flash photography
     - **Fake Airdrop**: A massive Titan plane flies over dropping flares
